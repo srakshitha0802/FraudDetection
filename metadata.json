@@ -1,0 +1,6 @@
+{
+  "name": "Sentinel Cyber Shield",
+  "description": "Personal UPI and payment fraud defense app: Real-time transaction safety checks, payment scam scanner, 1-click card lock, 1930 Cyber Police dispute filing, and complete personal data export (CSV/JSON).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
