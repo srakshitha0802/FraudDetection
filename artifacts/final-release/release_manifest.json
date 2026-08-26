@@ -1,0 +1,9 @@
+{
+  "release_id": "sentinel-release-candidate-final",
+  "git_commit": "4b72698a4b22f8b79044a61fbb59a7bd3f418125",
+  "model_version": "v3.0-lightgbm",
+  "calibration_version": "platt-v1.0",
+  "threshold_version": "opt-v1.0",
+  "database_schema_version": "005_indexes",
+  "release_timestamp": "2026-08-26T03:43:44Z"
+}

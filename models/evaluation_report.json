@@ -1,0 +1,120 @@
+{
+  "dataset_size": 205011,
+  "fraud_cases": 2878,
+  "legitimate_cases": 202133,
+  "global_metrics": {
+    "accuracy": 0.9859617288828404,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1_score": 0.0,
+    "roc_auc": 0.8322194894645273,
+    "pr_auc": 0.1960743447803417,
+    "log_loss": 0.12190449233469577,
+    "false_positive_rate": 0.0,
+    "false_negative_rate": 1.0,
+    "fraud_capture_rate": 0.0
+  },
+  "confusion_matrix": {
+    "true_negatives": 202133,
+    "false_positives": 0,
+    "false_negatives": 2878,
+    "true_positives": 0
+  },
+  "threshold_comparisons": [
+    {
+      "threshold": 0.3,
+      "precision": 0.08300187178287319,
+      "recall": 0.4930507296733843,
+      "f1_score": 0.1420847101231601,
+      "false_positives": 15677,
+      "false_negatives": 1459,
+      "true_positives": 1419,
+      "true_negatives": 186456,
+      "false_positive_rate": 0.07755784557692212,
+      "false_negative_rate": 0.5069492703266157,
+      "operational_loss": 88627000.0
+    },
+    {
+      "threshold": 0.4,
+      "precision": 0.1373586282378694,
+      "recall": 0.2616400277970813,
+      "f1_score": 0.18014354066985647,
+      "false_positives": 4729,
+      "false_negatives": 2125,
+      "true_positives": 753,
+      "true_negatives": 197404,
+      "false_positive_rate": 0.023395487129761097,
+      "false_negative_rate": 0.7383599722029187,
+      "operational_loss": 110979000.0
+    },
+    {
+      "threshold": 0.5,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "false_positives": 0,
+      "false_negatives": 2878,
+      "true_positives": 0,
+      "true_negatives": 202133,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 1.0,
+      "operational_loss": 143900000.0
+    },
+    {
+      "threshold": 0.6,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "false_positives": 0,
+      "false_negatives": 2878,
+      "true_positives": 0,
+      "true_negatives": 202133,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 1.0,
+      "operational_loss": 143900000.0
+    },
+    {
+      "threshold": 0.7,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "false_positives": 0,
+      "false_negatives": 2878,
+      "true_positives": 0,
+      "true_negatives": 202133,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 1.0,
+      "operational_loss": 143900000.0
+    },
+    {
+      "threshold": 0.8,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "false_positives": 0,
+      "false_negatives": 2878,
+      "true_positives": 0,
+      "true_negatives": 202133,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 1.0,
+      "operational_loss": 143900000.0
+    },
+    {
+      "threshold": 0.9,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "false_positives": 0,
+      "false_negatives": 2878,
+      "true_positives": 0,
+      "true_negatives": 202133,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 1.0,
+      "operational_loss": 143900000.0
+    }
+  ],
+  "business_cost_model": {
+    "false_positive_unit_cost": 1000.0,
+    "false_negative_unit_cost": 50000.0
+  }
+}

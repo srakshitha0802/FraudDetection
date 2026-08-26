@@ -115,34 +115,31 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const navTabs = [
-    { id: 'overview', label: 'My Safety & Wallet', icon: ShieldCheck },
-    { id: 'personal-history', label: 'My Transactions', icon: CreditCard, badge: totalHighRiskCount > 0 ? totalHighRiskCount : undefined },
-    { id: 'scam-checker', label: 'Scam & Payee Checker', icon: Search },
-    { id: 'cards-security', label: 'Card & UPI Controls', icon: Lock },
-    { id: 'n8n-workflow', label: 'n8n AI Workflows', icon: GitBranch },
-    { id: 'police-complaints', label: '1930 Cyber Police & Disputes', icon: FileText },
-    { id: 'data-export', label: 'Download Data', icon: Download },
+    { id: 'overview', label: 'Dashboard', icon: ShieldCheck },
+    { id: 'incidents', label: 'Incidents', icon: ShieldAlert },
+    { id: 'transactions', label: 'Transactions', icon: CreditCard },
+    { id: 'analytics', label: 'Risk Analytics', icon: FileText },
+    { id: 'model-health', label: 'Model Health', icon: RefreshCw },
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md">
+    <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-900/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
         
         {/* Brand Name & Tagline */}
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleNav('overview')}>
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 via-teal-500/20 to-sky-500/20 p-2 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-800 border border-slate-700 shadow-lg">
             <ShieldCheck className="h-6 w-6 text-emerald-400" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-lg font-bold tracking-tight text-white">Sentinel PayGuard</span>
+              <span className="text-lg font-bold tracking-wider text-white">SENTINEL</span>
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                PROTECTED
+                ACTIVE
               </span>
             </div>
-            <p className="text-xs text-slate-400 font-medium">
-              Personal UPI & Payment Fraud Protection
+            <p className="text-xs text-slate-400 font-medium tracking-tight">
+              Real-Time Fraud Incident & Abuse Intelligence
             </p>
           </div>
         </div>

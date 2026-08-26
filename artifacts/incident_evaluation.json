@@ -1,0 +1,20 @@
+{
+  "metrics": {
+    "spike_precision": 1.0,
+    "spike_recall": 1.0,
+    "false_alarm_rate": 0.0,
+    "mean_detection_latency_seconds": 31.223255841244,
+    "events_missed": 0,
+    "confusion_matrix": {
+      "tp": 100,
+      "fp": 0,
+      "tn": 100,
+      "fn": 0
+    }
+  },
+  "parameters": {
+    "z_score_threshold": 3.0,
+    "baseline_fraud_rate": 0.015,
+    "baseline_std_dev": 0.005
+  }
+}

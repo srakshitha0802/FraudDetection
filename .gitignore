@@ -7,4 +7,11 @@ coverage/
 .env*
 !.env.example
 
+.venv/
+data_processed/
+*.db
+*.db.bak
+__pycache__/
+.pytest_cache/
+.ipynb_checkpoints/
 archive 2/

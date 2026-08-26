@@ -1,0 +1,195 @@
+{
+  "name": "Sentinel - Fraud Incident Intelligence (Portable)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fraud-detection-v2",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "96323abe-f50d-4ff4-9515-8f7927ca4d47",
+      "name": "Webhook - Fraud Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "097831bc-6dc2-4995-aea5-40a70f0cc93b"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const input = $input.item.json || {};\nconst body = (input.body && typeof input.body === 'object') ? input.body : input;\n\nconst required = [\n  'transaction_id','user_id','amount','currency','merchant',\n  'timestamp','location','device','payment_method'\n];\n\nconst missing = required.filter(k => body[k] === undefined || body[k] === null || body[k] === '');\nconst errors = [];\n\nconst amount = Number(body.amount);\nif (!Number.isFinite(amount) || amount < 0) {\n  errors.push('amount must be a non-negative number');\n}\n\nconst date = new Date(body.timestamp);\nif (Number.isNaN(date.getTime())) {\n  errors.push('timestamp must be a valid ISO-8601 date');\n}\n\nif (!body.location || typeof body.location !== 'object') {\n  errors.push('location must be an object');\n}\nif (!body.device || typeof body.device !== 'object') {\n  errors.push('device must be an object');\n}\n\nconst valid = missing.length === 0 && errors.length === 0;\n\nreturn [{\n  json: {\n    valid,\n    errors: [...missing.map(k => `Missing required field: ${k}`), ...errors],\n    transaction: body,\n    received_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "5a8d43e7-13cc-4c57-b722-2c6a954c6e45",
+      "name": "Validate Transaction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "valid-check-v2",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "17d8680b-fef0-4142-8742-08d26d1bf89c",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const t = $('Validate Transaction').first().json.transaction || {};\nconst amount = Number(t.amount) || 0;\nconst previousAverage = Number(t.previous_average_amount);\nconst previousCount = Number(t.previous_transaction_count) || 0;\nconst accountAgeDays = Number(t.account_age_days);\nconst device = t.device || {};\nconst location = t.location || {};\nconst method = String(t.payment_method || '').toUpperCase();\n\nconst multiplier = Number.isFinite(previousAverage) && previousAverage > 0\n  ? amount / previousAverage\n  : null;\n\nconst flags = [];\nconst reasons = [];\nlet ruleScore = 0;\n\nif (multiplier !== null && multiplier >= 5) {\n  ruleScore += 20;\n  flags.push('HIGH_AMOUNT');\n  reasons.push(`Amount is ${multiplier.toFixed(1)}x the historical average`);\n}\nif (multiplier !== null && multiplier >= 10) {\n  ruleScore += 20;\n  flags.push('EXTREME_AMOUNT');\n  reasons.push('Transaction amount is extremely abnormal');\n}\nif (Number.isFinite(accountAgeDays) && accountAgeDays < 7) {\n  ruleScore += 20;\n  flags.push('NEW_ACCOUNT');\n  reasons.push('Account is less than 7 days old');\n}\nif (previousCount >= 20 || t.high_frequency === true) {\n  ruleScore += 15;\n  flags.push('HIGH_VELOCITY');\n  reasons.push('Unusually high recent transaction frequency');\n}\nif (device.new_device === true || device.is_known === false) {\n  ruleScore += 20;\n  flags.push('NEW_DEVICE');\n  reasons.push('Transaction originated from an unfamiliar device');\n}\nif (location.unusual_location === true || location.is_usual === false) {\n  ruleScore += 20;\n  flags.push('LOCATION_ANOMALY');\n  reasons.push('Location differs from normal activity');\n}\nif (['CRYPTO','GIFT_CARD','WIRE','WIRE_TRANSFER'].includes(method)) {\n  ruleScore += 10;\n  flags.push('PAYMENT_METHOD_RISK');\n  reasons.push('Payment method has elevated abuse risk');\n}\nif (flags.length >= 3) ruleScore += 10;\nruleScore = Math.min(100, ruleScore);\n\n/*\n  Incident intelligence:\n  Pass an optional recent_transactions array in the webhook payload.\n  This lets the workflow work standalone for demos and tests. In production,\n  replace this array with a database/stream lookup for the merchant's recent\n  transactions.\n*/\nconst recent = Array.isArray(t.recent_transactions) ? t.recent_transactions : [];\nconst baselineFraudRate = Math.min(\n  0.50,\n  Math.max(0.001, Number(t.baseline_fraud_rate ?? 0.01))\n);\n\nfunction transactionSuspicion(x) {\n  if (!x || typeof x !== 'object') return 0;\n  let s = 0;\n  const a = Number(x.amount);\n  const avg = Number(x.previous_average_amount);\n  if (Number.isFinite(avg) && avg > 0 && Number.isFinite(a)) {\n    const m = a / avg;\n    if (m >= 5) s += 25;\n    if (m >= 10) s += 20;\n  }\n  if (Number(x.account_age_days) < 7) s += 15;\n  if (x.high_frequency === true || Number(x.previous_transaction_count) >= 20) s += 15;\n  if (x.device?.new_device === true || x.device?.is_known === false) s += 20;\n  if (x.location?.unusual_location === true || x.location?.is_usual === false) s += 20;\n  if (['CRYPTO','GIFT_CARD','WIRE','WIRE_TRANSFER'].includes(String(x.payment_method || '').toUpperCase())) s += 10;\n  return Math.min(100, s);\n}\n\nconst suspiciousScores = recent.map(transactionSuspicion);\nconst suspiciousCount = suspiciousScores.filter(s => s >= 60).length;\nconst recentCount = recent.length;\nconst suspiciousRate = recentCount ? suspiciousCount / recentCount : 0;\nconst spikeRatio = baselineFraudRate > 0 ? suspiciousRate / baselineFraudRate : 0;\n\nconst deviceCounts = {};\nconst beneficiaryCounts = {};\nconst ipCounts = {};\nfor (const x of recent) {\n  const did = x?.device?.device_id;\n  const bid = x?.beneficiary_id;\n  const ip = x?.ip_address;\n  if (did) deviceCounts[did] = (deviceCounts[did] || 0) + 1;\n  if (bid) beneficiaryCounts[bid] = (beneficiaryCounts[bid] || 0) + 1;\n  if (ip) ipCounts[ip] = (ipCounts[ip] || 0) + 1;\n}\nconst maxDeviceCluster = Math.max(0, ...Object.values(deviceCounts));\nconst maxBeneficiaryCluster = Math.max(0, ...Object.values(beneficiaryCounts));\nconst maxIPCluster = Math.max(0, ...Object.values(ipCounts));\n\nlet incidentScore = 0;\nconst incidentReasons = [];\nif (recentCount >= 10 && suspiciousRate >= 0.05) {\n  incidentScore += 30;\n  incidentReasons.push(`Suspicious transaction rate is ${(suspiciousRate*100).toFixed(1)}%`);\n}\nif (recentCount >= 10 && spikeRatio >= 3) {\n  incidentScore += 25;\n  incidentReasons.push(`Suspicious activity is ${spikeRatio.toFixed(1)}x the baseline`);\n}\nif (maxDeviceCluster >= 4) {\n  incidentScore += 15;\n  incidentReasons.push(`A device is shared across ${maxDeviceCluster} recent transactions`);\n}\nif (maxBeneficiaryCluster >= 4) {\n  incidentScore += 20;\n  incidentReasons.push(`A beneficiary is linked to ${maxBeneficiaryCluster} recent transactions`);\n}\nif (maxIPCluster >= 5) {\n  incidentScore += 10;\n  incidentReasons.push(`An IP address appears in ${maxIPCluster} recent transactions`);\n}\nincidentScore = Math.min(100, incidentScore);\n\nlet riskLevel = 'LOW';\nlet decision = 'APPROVE';\nif (ruleScore >= 60) {\n  riskLevel = 'HIGH';\n  decision = 'BLOCK';\n} else if (ruleScore >= 30) {\n  riskLevel = 'MEDIUM';\n  decision = 'REVIEW';\n}\nif (ruleScore >= 85) {\n  riskLevel = 'CRITICAL';\n  decision = 'BLOCK';\n}\n\nlet incidentSeverity = 'NONE';\nif (incidentScore >= 80) incidentSeverity = 'CRITICAL';\nelse if (incidentScore >= 60) incidentSeverity = 'HIGH';\nelse if (incidentScore >= 40) incidentSeverity = 'MEDIUM';\n\nconst incidentDetected = incidentScore >= 60;\nconst incidentId = incidentDetected\n  ? `INC-${new Date().toISOString().replace(/\\D/g,'').slice(0,14)}-${String(Math.floor(Math.random()*10000)).padStart(4,'0')}`\n  : null;\n\nconst potentialExposure = incidentDetected\n  ? recent.filter((x, i) => suspiciousScores[i] >= 60)\n      .reduce((sum, x) => sum + (Number(x.amount) || 0), 0)\n  : 0;\n\nconst finalReasons = [...reasons, ...incidentReasons];\n\nreturn [{\n  json: {\n    transaction_id: t.transaction_id,\n    transaction: t,\n    risk_score: ruleScore,\n    risk_level: riskLevel,\n    decision,\n    fraud_probability: Number((ruleScore / 100).toFixed(2)),\n    rule_flags: flags,\n    reasons: finalReasons,\n    incident: {\n      detected: incidentDetected,\n      incident_id: incidentId,\n      severity: incidentSeverity,\n      incident_score: incidentScore,\n      recent_transaction_count: recentCount,\n      suspicious_transaction_count: suspiciousCount,\n      suspicious_rate: Number(suspiciousRate.toFixed(4)),\n      baseline_fraud_rate: baselineFraudRate,\n      spike_ratio: Number(spikeRatio.toFixed(2)),\n      max_device_cluster: maxDeviceCluster,\n      max_beneficiary_cluster: maxBeneficiaryCluster,\n      max_ip_cluster: maxIPCluster,\n      affected_transactions: suspiciousCount,\n      potential_exposure: potentialExposure\n    },\n    explanation: finalReasons.length\n      ? `Transaction risk ${ruleScore}/100. ${finalReasons.join('; ')}.`\n      : 'No significant rule-based fraud indicators were detected.',\n    next_action: incidentDetected\n      ? 'Open the fraud incident, review the affected cluster, and require human approval for containment actions.'\n      : decision === 'REVIEW'\n        ? 'Send to manual review.'\n        : decision === 'BLOCK'\n          ? 'Block or hold according to merchant risk policy.'\n          : 'Allow and continue monitoring.'\n  }\n}];"
+      },
+      "id": "8549cf41-c94f-4237-b680-9ecd6f22e400",
+      "name": "Risk + Incident Intelligence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'REJECTED', error: $json.errors, transaction_id: ($json.transaction || {}).transaction_id || null }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "7a4d104b-032e-4b11-a6e2-10418dbd3803",
+      "name": "Respond - Validation Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        780,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "b5ecf539-6721-4048-ac0e-8d4900cdca2b",
+      "name": "Respond - Risk Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1040,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Portable Fraud Incident Intelligence\nPOST /fraud-detection-v2\n\nCore path: validate \u2192 deterministic risk features \u2192 fraud-spike/cluster detection \u2192 JSON response.\n\nNo Data Table, OpenAI credential, Discord webhook, or other environment-specific dependency is required for the core workflow.\n\nFor a demo, include recent_transactions[] in the request. For production, replace that array with a DB/stream lookup.",
+        "height": 300,
+        "width": 480
+      },
+      "id": "10e1a597-1afe-4c14-8782-4dbeaa07262c",
+      "name": "How to use",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        300,
+        520
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Fraud Event": {
+      "main": [
+        [
+          {
+            "node": "Validate Transaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Transaction": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Risk + Incident Intelligence",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risk + Incident Intelligence": {
+      "main": [
+        [
+          {
+            "node": "Respond - Risk Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5bea9639-5f08-4b22-adea-54f2aa70403a",
+  "meta": {},
+  "tags": []
+}

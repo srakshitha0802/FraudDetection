@@ -84,7 +84,7 @@ export async function runAllTests(): Promise<TestSuiteReport> {
       status: 'PENDING',
     };
     const features = extractFeatures(tx);
-    const ml = predictFraudML(features);
+    const ml = await predictFraudML(features);
     const rules = evaluateRules(features, tx);
     const risk = calculateRiskScore(features, ml, rules);
 
@@ -241,7 +241,7 @@ export async function runAllTests(): Promise<TestSuiteReport> {
       status: 'PENDING',
     };
     const features = extractFeatures(tx);
-    const ml = predictFraudML(features);
+    const ml = await predictFraudML(features);
     const rules = evaluateRules(features, tx);
     const risk = calculateRiskScore(features, ml, rules);
     const atoRule = rules.find(r => r.rule_id === 'R01_ATO_FULL_COMBO');
@@ -320,7 +320,7 @@ export async function runAllTests(): Promise<TestSuiteReport> {
       account_status: 'ACTIVE'
     });
 
-    const res = executeToolCall('get_user_profile', { user_id: 'U102' });
+    const res = await executeToolCall('get_user_profile', { user_id: 'U102' });
     const passed = res.result && res.result.user_id === 'U102' && res.summary.includes('Aarav Sharma');
     return {
       passed,
@@ -386,7 +386,7 @@ export async function runAllTests(): Promise<TestSuiteReport> {
       status: 'PENDING',
     };
     const features = extractFeatures(tx);
-    const ml = predictFraudML(features);
+    const ml = await predictFraudML(features);
     const rules = evaluateRules(features, tx);
     const risk = calculateRiskScore(features, ml, rules);
 

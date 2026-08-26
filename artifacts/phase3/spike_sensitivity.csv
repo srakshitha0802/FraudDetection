@@ -1,0 +1,7 @@
+spike_multiplier,simulated_suspicious_rate,baseline_rate,z_score_deviation,anomaly_spike_detected
+1.2,0.018,0.015,0.5999999999999999,NO
+1.5,0.0225,0.015,1.5,NO
+2.0,0.03,0.015,3.0,YES
+3.0,0.045,0.015,6.0,YES
+5.0,0.075,0.015,12.0,YES
+10.0,0.15,0.015,27.0,YES

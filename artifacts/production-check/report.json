@@ -1,0 +1,64 @@
+{
+  "status": "PASS",
+  "timestamp": "2026-08-26T03:34:38Z",
+  "security": {
+    "secrets_scan": "PASS",
+    "input_security": "PASS"
+  },
+  "model_performance": {
+    "Month 6": {
+      "precision": 0.07692307692307693,
+      "recall": 0.49310344827586206,
+      "f1": 0.1330851558864588,
+      "roc_auc": 0.8309647533848472
+    },
+    "Month 7": {
+      "precision": 0.09024484040507627,
+      "recall": 0.49299719887955185,
+      "f1": 0.15256257449344457,
+      "roc_auc": 0.8348158259268701
+    }
+  },
+  "ablation_study": [
+    {
+      "configuration": "Rules Only",
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "expected_loss": 129510000.0
+    },
+    {
+      "configuration": "ML Only",
+      "precision": 0.08300187178287319,
+      "recall": 0.4930507296733843,
+      "f1": 0.1420847101231601,
+      "expected_loss": 97718500.0
+    },
+    {
+      "configuration": "ML + Rules",
+      "precision": 0.08300187178287319,
+      "recall": 0.4930507296733843,
+      "f1": 0.1420847101231601,
+      "expected_loss": 97718500.0
+    },
+    {
+      "configuration": "Full Sentinel",
+      "precision": 0.08300187178287319,
+      "recall": 0.4930507296733843,
+      "f1": 0.1420847101231601,
+      "expected_loss": 97718500.0
+    }
+  ],
+  "hard_negatives": {
+    "large_legit_block_rate": 0.0,
+    "travel_anomaly_block_rate": 0.0
+  },
+  "api_contracts": {
+    "health": true,
+    "ready": true,
+    "risk_analyze": true,
+    "idempotency_check": true,
+    "idempotency_collision": true,
+    "adversarial_rejection": true
+  }
+}

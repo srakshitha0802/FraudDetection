@@ -1,0 +1,50 @@
+{
+  "dataset_rows": 205011,
+  "fraud_rate": 0.014038271117159567,
+  "temporal_range": {
+    "training": "Months 0-4",
+    "validation": "Month 5",
+    "test": "Months 6-7"
+  },
+  "operating_thresholds": {
+    "monitor": 0.02,
+    "review": 0.03,
+    "protect": 0.2
+  },
+  "model_performance_test": {
+    "precision": 0.08300187178287319,
+    "recall": 0.4930507296733843,
+    "f1_score": 0.1420847101231601,
+    "roc_auc": 0.8322194894645273,
+    "pr_auc": 0.1960743447803417,
+    "false_positive_rate": 0.07755784557692212,
+    "false_negative_rate": 0.5069492703266157,
+    "expected_loss": 97718500.0,
+    "confusion_matrix": {
+      "tp": 1419,
+      "fp": 15677,
+      "tn": 186456,
+      "fn": 1459
+    }
+  },
+  "baselines_comparison": {
+    "baseline_a_majority_class": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "expected_loss": 129510000.0
+    },
+    "baseline_b_amount_rules": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "expected_loss": 129510000.0
+    },
+    "baseline_c_calibrated_lgb": {
+      "precision": 0.08300187178287319,
+      "recall": 0.4930507296733843,
+      "f1_score": 0.1420847101231601,
+      "expected_loss": 97718500.0
+    }
+  }
+}

@@ -1,0 +1,175 @@
+tree
+version=v4
+num_class=1
+num_tree_per_iteration=1
+label_index=0
+max_feature_idx=30
+objective=binary sigmoid:1
+feature_names=income name_email_similarity prev_address_months_count current_address_months_count customer_age days_since_request intended_balcon_amount payment_type zip_count_4w velocity_6h velocity_24h velocity_4w bank_branch_count_8w date_of_birth_distinct_emails_4w employment_status credit_risk_score email_is_free housing_status phone_home_valid phone_mobile_valid bank_months_count has_other_cards proposed_credit_limit foreign_request source session_length_in_minutes device_os keep_alive_session device_distinct_emails_8w device_fraud_count month
+feature_infos=[0.10000000000000001:0.90000000000000002] [2.0421221000000001e-05:0.99999859999999996] [-1:366] [-1:418] [10:90] [9.9436479999999999e-08:76.581474] [-14.06498:112.48623000000001] -1:2:0:3:1 [5:6563] [-130.45692:16535.401999999998] [1529.7552000000001:9506.8960000000006] [2995.6138000000001:6960.1415999999999] [0:2350] [0:38] -1:1:0:3:2:4:5 [-170:386] [0:1] -1:0:4:1:3:2:5 [0:1] [0:1] [-1:32] [0:1] [190:2100] [0:1] -1:0 [-1:82.299323999999999] -1:0:1:2:4 [0:1] [-1:2] none [0:4]
+tree_sizes=3476
+
+Tree=0
+num_leaves=31
+num_cat=3
+split_feature=17 26 2 26 2 1 12 18 27 18 21 16 21 15 21 21 4 28 1 1 18 13 1 27 2 2 1 1 2 18
+split_gain=5.84056e+06 2.03709e+06 480062 432483 336821 276708 231719 218075 189454 183083 138446 112379 112295 108700 104160 81341.2 76687.7 75864.8 64488 62144.4 61960.9 57134.9 47392.9 45183 44582.2 43596.5 42105.1 41451.5 40773.3 39210.9
+threshold=0 1 1.0000000180025095e-35 2 1.0000000180025095e-35 0.22326507500000001 1.5000000000000002 1.0000000180025095e-35 1.0000000180025095e-35 1.0000000180025095e-35 1.0000000180025095e-35 1.0000000180025095e-35 1.0000000180025095e-35 210.50000000000003 1.0000000180025095e-35 1.0000000180025095e-35 45.000000000000007 1.5000000000000002 0.29454464000000008 0.19237479500000002 1.0000000180025095e-35 3.5000000000000004 0.28395911000000007 1.0000000180025095e-35 1.0000000180025095e-35 9.5000000000000018 0.18813913500000004 0.30444021000000004 10.500000000000002 1.0000000180025095e-35
+decision_type=9 9 2 9 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
+left_child=3 4 5 14 7 15 20 8 10 11 -2 18 -8 17 24 23 26 19 -5 -4 -7 -9 -10 -3 29 -13 -11 -23 -20 -1
+right_child=1 2 13 9 -6 6 12 21 22 16 -12 25 -14 -15 -16 -17 -18 -19 28 -21 -22 27 -24 -25 -26 -27 -28 -29 -30 -31
+leaf_value=-0.0183578153722328 -2.2925373735082237 -0.5476178366798079 -2.6310600622528044 -1.0165849129962221 -4.232682666046327 -1.0333458343707296 -2.2654089728544711 -3.0114931790348982 -2.9995976860185385 -1.8182243923625112 -3.749945162454694 -0.5832362254084682 -3.6243606124864645 -1.7327493597596528 -1.1561823184745217 -2.4120194384460354 -1.5645412724412471 -1.4335059058488415 -1.9911047896108736 -3.7581513563659819 -2.1057531362628255 -3.5581958030721461 -3.7063557461653467 -1.2993380822790614 -0.99699887268916365 -1.9903592871071112 -3.1581867370145829 -4.2209879289959273 -3.9727452804108543 -0.45303653286341206
+leaf_weight=1794.2593045737594 901.64194386079907 516.74858840741217 164.83322750870138 198.13731054216623 1421.452767515555 506.56327845063061 997.59166798181832 172.82799411099404 346.17197277303785 84.170405491255224 198.89831363316625 699.51166511513293 179.34660162776709 127.66036228369921 315.48230760544538 90.9873953089118 267.14165379013866 49.398035915568471 222.24988490901887 473.9512975839898 183.4755836436525 359.68311658874154 753.50000497046858 326.00506535917521 163.0960748763755 59.747910911217332 193.17465518042445 685.4578395485878 29.390373426489532 729.84900575410575
+leaf_count=17216 49248 10373 10108 5817 132241 15040 53953 11900 23754 3807 16603 14535 14525 5558 10134 5185 10741 1858 10813 39640 9343 28659 62248 11396 4725 2906 13862 63611 2583 13284
+internal_value=-2.11669 -2.91192 -2.01256 -0.714532 -3.58793 -1.6945 -2.04597 -3.31686 -3.01972 -1.42593 -2.55593 -1.06499 -2.47249 -3.07275 -0.310993 -0.991747 -2.16916 -3.32133 -1.6913 -3.46731 -1.31849 -3.85363 -3.48387 -0.838408 -0.195814 -0.693966 -2.75153 -3.99289 -2.22255 -0.144046
+internal_weight=13212.4 8456.2 3616.56 4756.21 4839.63 2800.72 1866.98 3418.18 2200.21 1753.52 1100.54 1209.04 1176.94 815.843 3002.69 933.741 544.487 688.183 449.778 638.785 690.039 1217.97 1099.67 842.754 2687.2 759.26 277.345 1045.14 251.64 2524.11
+internal_count=675666 565243 176979 110423 388264 119815 92861 256023 151853 65064 65851 36654 68478 57164 45359 26954 28410 51606 19213 49748 24383 104170 86002 21769 35225 17441 17669 92270 13396 30500
+cat_boundaries=0 1 2 3
+cat_threshold=8 3 20
+is_linear=0
+shrinkage=1
+
+
+end of trees
+
+feature_importances:
+name_email_similarity=6
+prev_address_months_count=5
+phone_home_valid=4
+has_other_cards=4
+device_os=2
+keep_alive_session=2
+customer_age=1
+bank_branch_count_8w=1
+date_of_birth_distinct_emails_4w=1
+credit_risk_score=1
+email_is_free=1
+housing_status=1
+device_distinct_emails_8w=1
+
+parameters:
+[boosting: gbdt]
+[objective: binary]
+[metric: binary_logloss]
+[tree_learner: serial]
+[device_type: cpu]
+[data_sample_strategy: bagging]
+[data: ]
+[valid: ]
+[num_iterations: 100]
+[learning_rate: 0.05]
+[num_leaves: 31]
+[num_threads: 0]
+[seed: 42]
+[deterministic: 0]
+[force_col_wise: 0]
+[force_row_wise: 0]
+[histogram_pool_size: -1]
+[max_depth: 6]
+[min_data_in_leaf: 20]
+[min_sum_hessian_in_leaf: 0.001]
+[bagging_fraction: 1]
+[pos_bagging_fraction: 1]
+[neg_bagging_fraction: 1]
+[bagging_freq: 0]
+[bagging_seed: 400]
+[bagging_by_query: 0]
+[feature_fraction: 1]
+[feature_fraction_bynode: 1]
+[feature_fraction_seed: 30056]
+[extra_trees: 0]
+[extra_seed: 12879]
+[early_stopping_round: 0]
+[early_stopping_min_delta: 0]
+[first_metric_only: 0]
+[max_delta_step: 0]
+[lambda_l1: 0]
+[lambda_l2: 0]
+[linear_lambda: 0]
+[min_gain_to_split: 0]
+[drop_rate: 0.1]
+[max_drop: 50]
+[skip_drop: 0.5]
+[xgboost_dart_mode: 0]
+[uniform_drop: 0]
+[drop_seed: 17869]
+[top_rate: 0.2]
+[other_rate: 0.1]
+[min_data_per_group: 100]
+[max_cat_threshold: 32]
+[cat_l2: 10]
+[cat_smooth: 10]
+[max_cat_to_onehot: 4]
+[top_k: 20]
+[monotone_constraints: ]
+[monotone_constraints_method: basic]
+[monotone_penalty: 0]
+[feature_contri: ]
+[forcedsplits_filename: ]
+[refit_decay_rate: 0.9]
+[cegb_tradeoff: 1]
+[cegb_penalty_split: 0]
+[cegb_penalty_feature_lazy: ]
+[cegb_penalty_feature_coupled: ]
+[path_smooth: 0]
+[interaction_constraints: ]
+[verbosity: -1]
+[saved_feature_importance_type: 0]
+[use_quantized_grad: 0]
+[num_grad_quant_bins: 4]
+[quant_train_renew_leaf: 0]
+[stochastic_rounding: 1]
+[linear_tree: 0]
+[max_bin: 255]
+[max_bin_by_feature: ]
+[min_data_in_bin: 3]
+[bin_construct_sample_cnt: 200000]
+[data_random_seed: 175]
+[is_enable_sparse: 1]
+[enable_bundle: 1]
+[use_missing: 1]
+[zero_as_missing: 0]
+[feature_pre_filter: 1]
+[pre_partition: 0]
+[two_round: 0]
+[header: 0]
+[label_column: ]
+[weight_column: ]
+[group_column: ]
+[ignore_column: ]
+[categorical_feature: 7,14,17,24,26]
+[forcedbins_filename: ]
+[precise_float_parser: 0]
+[parser_config_file: ]
+[objective_seed: 16083]
+[num_class: 1]
+[is_unbalance: 0]
+[scale_pos_weight: 99.2472]
+[sigmoid: 1]
+[boost_from_average: 1]
+[reg_sqrt: 0]
+[alpha: 0.9]
+[fair_c: 1]
+[poisson_max_delta_step: 0.7]
+[tweedie_variance_power: 1.5]
+[lambdarank_truncation_level: 30]
+[lambdarank_norm: 1]
+[label_gain: ]
+[lambdarank_position_bias_regularization: 0]
+[eval_at: ]
+[multi_error_top_k: 1]
+[auc_mu_weights: ]
+[num_machines: 1]
+[local_listen_port: 12400]
+[time_out: 120]
+[machine_list_filename: ]
+[machines: ]
+[gpu_platform_id: -1]
+[gpu_device_id: -1]
+[gpu_device_id_list: ]
+[gpu_use_dp: 0]
+[num_gpu: 1]
+
+end of parameters
+
+pandas_categorical:[]

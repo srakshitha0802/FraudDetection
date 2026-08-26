@@ -1,3 +1,13 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
+// Startup Configuration Validation
+if (!process.env.GEMINI_API_KEY) {
+  console.error('\n[Sentinel] ❌ CRITICAL STARTUP FAILURE: GEMINI_API_KEY environment variable is missing.');
+  console.error('[Sentinel] Please add GEMINI_API_KEY to your .env configuration file before launching.\n');
+  process.exit(1);
+}
+
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
@@ -20,12 +30,69 @@ import { Transaction, EmailDispatchRecord } from './server/types.ts';
 import { analyzeScamContent, chatCyberAdvisor, ScamAnalysisResult } from './server/personal_ai.ts';
 import { sendFraudAlert, sendTestEmail, sendDirectEmail, emailDispatchStore } from './server/emailService.ts';
 import { sendFraudSmsAlert, sendDirectSms, smsDispatchStore } from './server/smsService.ts';
+import {
+  analyzeTransactionRoute,
+  detectIncidentsRoute,
+  getIncidentsRoute,
+  getIncidentByIdRoute,
+  resolveIncidentRoute,
+  submitFeedbackRoute,
+  getModelHealthRoute,
+  getDashboardMetricsRoute,
+  getModelThresholdsRoute,
+  getFraudSpikesAnalyticsRoute,
+  getClustersAnalyticsRoute
+} from './server/sentinel_service.ts';
 
 async function startServer() {
-  const app = express();
-  const PORT = 3000;
+  // Ensure database migrations and maps are fully loaded before start
+  await seedDatabase();
 
-  app.use(express.json());
+  const app = express();
+  const PORT = Number(process.env.PORT) || 3000;
+
+  // Prevent generic EADDRINUSE crashes by attaching a listener early
+  process.on('uncaughtException', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`\n[Sentinel] ❌ Port ${PORT} is already in use.`);
+      console.error(`[Sentinel]    Run: kill -9 $(lsof -t -i:${PORT}) && npm run dev\n`);
+      process.exit(1);
+    }
+    throw err;
+  });
+
+  app.use(express.json({ limit: '10mb' }));
+
+  // Custom In-Memory API Rate Limiter
+  const rateLimitWindowMs = 60000; // 1 minute window
+  const maxRequestsPerWindow = 120; // limit to 120 reqs/min
+  const rateLimits = new Map<string, { count: number; resetAt: number }>();
+
+  function rateLimiterMiddleware(req: any, res: any, next: any) {
+    const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    const now = Date.now();
+
+    let record = rateLimits.get(ip);
+    if (!record || now > record.resetAt) {
+      record = { count: 0, resetAt: now + rateLimitWindowMs };
+    }
+    record.count += 1;
+    rateLimits.set(ip, record);
+
+    if (record.count > maxRequestsPerWindow) {
+      return res.status(429).json({
+        error: 'RATE_LIMITED',
+        message: 'Too many requests. API rate limit exceeded.',
+        request_id: `req-rate-${Math.floor(10000 + Math.random() * 90000)}`
+      });
+    }
+    next();
+  }
+
+  // Mount rate limiter on sensitive transaction & incident endpoints
+  app.use('/api/v1/risk/analyze', rateLimiterMiddleware);
+  app.use('/api/v1/incidents/detect', rateLimiterMiddleware);
+  app.use('/api/v1/feedback', rateLimiterMiddleware);
 
   let txGlobalCounter = Date.now() % 100000;
   function generateUniqueTxId(): string {
@@ -87,7 +154,7 @@ async function startServer() {
       const features = extractFeatures(tx, user);
 
       // Run ML Model
-      const mlPrediction = predictFraudML(features);
+      const mlPrediction = await predictFraudML(features);
 
       // Run Deterministic Rules
       const ruleResults = evaluateRules(features, tx);
@@ -709,7 +776,7 @@ async function startServer() {
 
         db.transactions.set(tx.transaction_id, tx);
         const features = extractFeatures(tx, user);
-        const mlPrediction = predictFraudML(features);
+        const mlPrediction = await predictFraudML(features);
         const ruleResults = evaluateRules(features, tx);
         const riskBreakdown = calculateRiskScore(features, mlPrediction, ruleResults);
         
@@ -1520,26 +1587,292 @@ async function startServer() {
     accentColor: string;
   }
 
-  // Initialized with ZERO sample data as requested
-  let personalCards: PersonalCardState[] = [];
+  // Pre-seeded realistic demo cards
+  let personalCards: PersonalCardState[] = [
+    {
+      id: 'card-hdfc-debit-8831',
+      cardHolder: 'Rakshitha S',
+      cardNumberMasked: '•••• •••• •••• 8831',
+      cardType: 'DEBIT',
+      network: 'VISA',
+      bankName: 'HDFC Bank',
+      expiry: '08/28',
+      isBlocked: false,
+      onlineTxEnabled: true,
+      intlTxEnabled: false,
+      contactlessEnabled: true,
+      atmEnabled: true,
+      dailyLimit: 50000,
+      maxSingleTxnLimit: 25000,
+      geofenceStrictEnabled: true,
+      autoLockOnFraudAttempt: true,
+      blockCryptoGambling: true,
+      smsAlertThreshold: 500,
+      tokenizedMask: true,
+      fraudAlertCount: 1,
+      accentColor: 'from-blue-600 via-indigo-700 to-slate-900'
+    },
+    {
+      id: 'card-icici-credit-4422',
+      cardHolder: 'Rakshitha S',
+      cardNumberMasked: '•••• •••• •••• 4422',
+      cardType: 'CREDIT',
+      network: 'MASTERCARD',
+      bankName: 'ICICI Bank',
+      expiry: '03/27',
+      isBlocked: false,
+      onlineTxEnabled: true,
+      intlTxEnabled: false,
+      contactlessEnabled: true,
+      atmEnabled: false,
+      dailyLimit: 100000,
+      maxSingleTxnLimit: 40000,
+      geofenceStrictEnabled: true,
+      autoLockOnFraudAttempt: true,
+      blockCryptoGambling: true,
+      smsAlertThreshold: 1000,
+      tokenizedMask: true,
+      fraudAlertCount: 0,
+      accentColor: 'from-orange-600 via-rose-700 to-slate-950'
+    }
+  ];
 
   let personalAccount = {
     id: 'acc-primary',
     accountNumberMasked: 'HDFC •••• 8831',
     bankName: 'HDFC Bank',
     accountType: 'SAVINGS',
-    balance: 0,
-    upiIds: ['srakshitha@okhdfcbank'],
+    balance: 84250,
+    upiIds: ['srakshitha@okhdfcbank', 'srakshitha@ibl'],
     isFrozen: false,
     frozenAt: undefined as string | undefined,
     ifscCode: 'HDFC0000182',
     branch: 'Indiranagar, Bengaluru'
   };
 
-  // Initialized with ZERO sample data as requested
-  let personalHistoryTransactions: any[] = [];
+  // Pre-seeded realistic demo transactions (range: normal to critical fraud)
+  let personalHistoryTransactions: any[] = [
+    {
+      transaction_id: 'TXN-SAFE-001',
+      user_id: 'usr-srakshitha',
+      user_name: 'Rakshitha S',
+      amount: 450,
+      currency: 'INR',
+      merchant_id: 'M-SWIGGY',
+      merchant_name: 'Swiggy Instamart',
+      merchant_category: 'GROCERY',
+      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      transaction_type: 'UPI',
+      device_id: 'DEV-IPHONE14-VERIFIED',
+      device_model: 'Apple iPhone 14 Pro',
+      ip_address: '49.207.210.45',
+      location: 'Bengaluru, Karnataka',
+      status: 'APPROVED',
+      risk_score: 8,
+      risk_level: 'LOW',
+      recommended_action: 'APPROVE',
+      fraud_signals: [],
+      police_complaint_filed: false,
+      card_blocked: false
+    },
+    {
+      transaction_id: 'TXN-SAFE-002',
+      user_id: 'usr-srakshitha',
+      user_name: 'Rakshitha S',
+      amount: 1299,
+      currency: 'INR',
+      merchant_id: 'M-AMAZON',
+      merchant_name: 'Amazon.in',
+      merchant_category: 'SHOPPING',
+      timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+      transaction_type: 'UPI',
+      device_id: 'DEV-IPHONE14-VERIFIED',
+      device_model: 'Apple iPhone 14 Pro',
+      ip_address: '49.207.210.45',
+      location: 'Bengaluru, Karnataka',
+      status: 'APPROVED',
+      risk_score: 12,
+      risk_level: 'LOW',
+      recommended_action: 'APPROVE',
+      fraud_signals: [],
+      police_complaint_filed: false,
+      card_blocked: false
+    },
+    {
+      transaction_id: 'TXN-MED-003',
+      user_id: 'usr-srakshitha',
+      user_name: 'Rakshitha S',
+      amount: 18500,
+      currency: 'INR',
+      merchant_id: 'M-ELEC',
+      merchant_name: 'Croma Electronics',
+      merchant_category: 'ELECTRONICS',
+      timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+      transaction_type: 'CARD',
+      device_id: 'DEV-IPHONE14-VERIFIED',
+      device_model: 'Apple iPhone 14 Pro',
+      ip_address: '49.207.210.45',
+      location: 'Bengaluru, Karnataka',
+      status: 'APPROVED',
+      risk_score: 34,
+      risk_level: 'MEDIUM',
+      recommended_action: 'REVIEW_TRANSACTION',
+      card_last4: '4422',
+      fraud_signals: ['High value transaction exceeding ₹10,000 threshold'],
+      police_complaint_filed: false,
+      card_blocked: false
+    },
+    {
+      transaction_id: 'TXN-HIGH-004',
+      user_id: 'usr-srakshitha',
+      user_name: 'Rakshitha S',
+      amount: 32000,
+      currency: 'INR',
+      merchant_id: 'M-UNKNOWN-YBL',
+      merchant_name: 'quicktransfer.fastpay@ybl',
+      merchant_category: 'UPI_TRANSFER',
+      timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      transaction_type: 'UPI',
+      device_id: 'DEV-XIAOMI-UNRECOG',
+      device_model: 'Xiaomi Redmi Note 12 (Unrecognized)',
+      ip_address: '103.21.58.19',
+      location: 'Mumbai, Maharashtra',
+      status: 'HELD',
+      risk_score: 72,
+      risk_level: 'HIGH',
+      recommended_action: 'REVIEW_TRANSACTION',
+      fraud_signals: [
+        'Suspicious / Unverified beneficiary VPA matching fraud patterns',
+        'High value transaction exceeding ₹25,000 threshold (₹32,000)',
+        'Geographic anomaly: Originating from Mumbai (outside regular home circle)',
+        'Unrecognized or unauthorized device fingerprint detected'
+      ],
+      suspect_details: {
+        suspect_upi: 'quicktransfer.fastpay@ybl',
+        merchant_name: 'quicktransfer.fastpay@ybl',
+        location: 'Mumbai, Maharashtra',
+        notes: 'High-risk recipient flagged by automated threat scanner'
+      },
+      police_complaint_filed: false,
+      card_blocked: false
+    },
+    {
+      transaction_id: 'TXN-CRIT-005',
+      user_id: 'usr-srakshitha',
+      user_name: 'Rakshitha S',
+      amount: 75000,
+      currency: 'INR',
+      merchant_id: 'M-CRYPTO-MULE',
+      merchant_name: 'syndicate.crypto.payout@paytm',
+      merchant_category: 'UPI_TRANSFER',
+      timestamp: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(),
+      transaction_type: 'UPI',
+      device_id: 'DEV-EMULATOR-PROXY',
+      device_model: 'Linux Emulator / Proxy Device',
+      ip_address: '185.220.101.5',
+      location: 'Moscow, Russia',
+      status: 'HELD',
+      risk_score: 97,
+      risk_level: 'CRITICAL',
+      recommended_action: 'BLOCK_CARD_AND_FILE_POLICE_REPORT',
+      fraud_signals: [
+        'Suspicious / Unverified beneficiary VPA — confirmed Crypto Mule',
+        'High value transaction ₹75,000 (SIM-swap velocity pattern)',
+        'Geographic anomaly: Originating from Russia (foreign IP detected)',
+        'Unrecognized device — Linux Emulator / Proxy',
+        'Midnight hour anomaly (03:17 AM)'
+      ],
+      suspect_details: {
+        suspect_upi: 'syndicate.crypto.payout@paytm',
+        merchant_name: 'Offshore Crypto Payout Node',
+        location: 'Moscow, Russia',
+        notes: 'SIM-swap + emulator pattern — confirmed fraud ring'
+      },
+      police_complaint_filed: false,
+      card_blocked: true
+    },
+    {
+      transaction_id: 'TXN-SAFE-006',
+      user_id: 'usr-srakshitha',
+      user_name: 'Rakshitha S',
+      amount: 870,
+      currency: 'INR',
+      merchant_id: 'M-ZOMATO',
+      merchant_name: 'Zomato',
+      merchant_category: 'FOOD',
+      timestamp: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+      transaction_type: 'UPI',
+      device_id: 'DEV-IPHONE14-VERIFIED',
+      device_model: 'Apple iPhone 14 Pro',
+      ip_address: '49.207.210.45',
+      location: 'Bengaluru, Karnataka',
+      status: 'APPROVED',
+      risk_score: 5,
+      risk_level: 'LOW',
+      recommended_action: 'APPROVE',
+      fraud_signals: [],
+      police_complaint_filed: false,
+      card_blocked: false
+    },
+    {
+      transaction_id: 'TXN-HIGH-007',
+      user_id: 'usr-srakshitha',
+      user_name: 'Rakshitha S',
+      amount: 28000,
+      currency: 'INR',
+      merchant_id: 'M-JOB-SCAM',
+      merchant_name: 'telegram.jobtask.reward@okhdfcbank',
+      merchant_category: 'UPI_TRANSFER',
+      timestamp: new Date(Date.now() - 60 * 60 * 1000 * 72).toISOString(),
+      transaction_type: 'UPI',
+      device_id: 'DEV-IPHONE14-VERIFIED',
+      device_model: 'Apple iPhone 14 Pro',
+      ip_address: '49.207.210.45',
+      location: 'Bengaluru, Karnataka',
+      status: 'HELD',
+      risk_score: 86,
+      risk_level: 'CRITICAL',
+      recommended_action: 'BLOCK_CARD_AND_FILE_POLICE_REPORT',
+      fraud_signals: [
+        'Suspicious Telegram Part-Time Job Scam pattern in VPA',
+        'High value transfer ₹28,000 to unknown beneficiary',
+        'Recipient VPA matches known Telegram scam ring signature'
+      ],
+      suspect_details: {
+        suspect_upi: 'telegram.jobtask.reward@okhdfcbank',
+        merchant_name: 'Telegram Job Task Reward Scam Node',
+        location: 'Bengaluru, Karnataka',
+        notes: 'YouTube/Telegram part-time job scam — first paid ₹150 demo, then targets larger transfer'
+      },
+      police_complaint_filed: true,
+      card_blocked: false
+    },
+    {
+      transaction_id: 'TXN-SAFE-008',
+      user_id: 'usr-srakshitha',
+      user_name: 'Rakshitha S',
+      amount: 2500,
+      currency: 'INR',
+      merchant_id: 'M-NAMMA-METRO',
+      merchant_name: 'BMTC / Namma Metro Recharge',
+      merchant_category: 'TRANSPORT',
+      timestamp: new Date(Date.now() - 60 * 60 * 1000 * 96).toISOString(),
+      transaction_type: 'UPI',
+      device_id: 'DEV-IPHONE14-VERIFIED',
+      device_model: 'Apple iPhone 14 Pro',
+      ip_address: '49.207.210.45',
+      location: 'Bengaluru, Karnataka',
+      status: 'APPROVED',
+      risk_score: 6,
+      risk_level: 'LOW',
+      recommended_action: 'APPROVE',
+      fraud_signals: [],
+      police_complaint_filed: false,
+      card_blocked: false
+    }
+  ];
 
-  // Initialized with ZERO sample data as requested
+  // Pre-seeded demo complaints
   let policeComplaints: any[] = [];
 
   // 21.1 Get Personal Cards
@@ -3065,7 +3398,39 @@ return [{
     res.json(sampleData);
   });
 
+  // ==========================================
+  // Sentinel B2B Relational REST APIs
+  // ==========================================
+  app.post('/api/v1/risk/analyze', analyzeTransactionRoute);
+  app.post('/api/v1/incidents/detect', detectIncidentsRoute);
+  app.get('/api/v1/incidents', getIncidentsRoute);
+  await detectIncidentsRoute({} as any, { json: () => {} } as any); // Pre-run incident detection on start
+  app.get('/api/v1/incidents/:id', getIncidentByIdRoute);
+  app.post('/api/v1/incidents/:id/resolve', resolveIncidentRoute);
+  app.post('/api/v1/feedback', submitFeedbackRoute);
+  app.get('/api/v1/model/health', getModelHealthRoute);
+  app.get('/api/v1/metrics', getDashboardMetricsRoute);
+  app.get('/api/v1/model/thresholds', getModelThresholdsRoute);
+  app.get('/api/v1/analytics/fraud-spikes', getFraudSpikesAnalyticsRoute);
+  app.get('/api/v1/analytics/clusters', getClustersAnalyticsRoute);
 
+  app.get('/health', (req, res) => {
+    res.json({
+      status: "healthy",
+      version: "v4.0.0",
+      model_version: "v3.0-lightgbm",
+      database: "ok",
+      model: "loaded"
+    });
+  });
+
+  app.get('/ready', (req, res) => {
+    res.json({
+      status: "ready",
+      database: "connected",
+      cache: "initialized"
+    });
+  });
 
   // Vite Middleware in Dev vs Static Serving in Prod
   if (process.env.NODE_ENV !== 'production') {
@@ -3081,6 +3446,16 @@ return [{
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // Centralized B2B Error Handling Middleware (Suppress internal stack trace leakage)
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error('Unhandled Application Error:', err);
+    res.status(err.status || 500).json({
+      error: err.code || 'INTERNAL_ERROR',
+      message: err.message || 'An unexpected application error occurred.',
+      request_id: req.id || `req-${Math.floor(10000 + Math.random() * 90000)}`
+    });
+  });
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Fraud Sentinel AI server active on http://0.0.0.0:${PORT}`);

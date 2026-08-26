@@ -1,0 +1,6 @@
+{
+  "false_positive_cost": 1500.0,
+  "false_negative_cost": 45000.0,
+  "manual_review_cost": 500.0,
+  "blocked_transaction_cost": 200.0
+}

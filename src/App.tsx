@@ -14,13 +14,11 @@ import {
   AuthUser
 } from './types.ts';
 import { Navbar } from './components/Navbar.tsx';
-import { PersonalDashboardView } from './components/views/PersonalDashboardView.tsx';
-import { PersonalHistoryView } from './components/views/PersonalHistoryView.tsx';
-import { ScamChecker } from './components/views/ScamChecker.tsx';
-import { CardsSecurityView } from './components/views/CardsSecurityView.tsx';
-import { PoliceComplaintView } from './components/views/PoliceComplaintView.tsx';
-import { DataExportView } from './components/views/DataExportView.tsx';
-import { N8nWorkflowView } from './components/views/N8nWorkflowView.tsx';
+import { B2bDashboardView } from './components/views/B2bDashboardView.tsx';
+import { B2bIncidentsView } from './components/views/B2bIncidentsView.tsx';
+import { B2bTransactionsView } from './components/views/B2bTransactionsView.tsx';
+import { B2bRiskAnalyticsView } from './components/views/B2bRiskAnalyticsView.tsx';
+import { B2bModelHealthView } from './components/views/B2bModelHealthView.tsx';
 import { AuthGateView } from './components/views/AuthGateView.tsx';
 import { AuthModal } from './components/AuthModal.tsx';
 import { InvestigationModal } from './components/InvestigationModal.tsx';
@@ -182,8 +180,7 @@ export function App() {
               transition={{ duration: 0.15, ease: 'easeOut' }}
             >
               {activeTab === 'overview' && (
-                <PersonalDashboardView
-                  currentUser={currentUser}
+                <B2bDashboardView
                   onNavigate={(tab, extra) => {
                     setNavigationExtra(extra || null);
                     setActiveTab(tab);
@@ -191,45 +188,23 @@ export function App() {
                 />
               )}
 
-              {activeTab === 'personal-history' && (
-                <PersonalHistoryView
-                  onFileComplaint={(txn) => {
-                    setNavigationExtra({ transaction: txn });
-                    setActiveTab('police-complaints');
-                  }}
-                  onBlockCard={(cardLast4) => {
-                    setNavigationExtra({ cardLast4 });
-                    setActiveTab('cards-security');
-                  }}
+              {activeTab === 'incidents' && (
+                <B2bIncidentsView
+                  initialIncidentId={navigationExtra?.incidentId}
+                  onClearNavigation={() => setNavigationExtra(null)}
                 />
               )}
 
-              {activeTab === 'scam-checker' && (
-                <ScamChecker />
+              {activeTab === 'transactions' && (
+                <B2bTransactionsView />
               )}
 
-              {activeTab === 'cards-security' && (
-                <CardsSecurityView
-                  initialCardLast4={navigationExtra?.cardLast4}
-                />
+              {activeTab === 'analytics' && (
+                <B2bRiskAnalyticsView />
               )}
 
-              {activeTab === 'police-complaints' && (
-                <PoliceComplaintView
-                  initialTransaction={navigationExtra?.transaction}
-                  onComplaintFiled={() => loadData()}
-                />
-              )}
-
-              {activeTab === 'data-export' && (
-                <DataExportView
-                  currentUser={currentUser}
-                  transactions={transactions}
-                />
-              )}
-
-              {activeTab === 'n8n-workflow' && (
-                <N8nWorkflowView />
+              {activeTab === 'model-health' && (
+                <B2bModelHealthView />
               )}
             </motion.div>
           </AnimatePresence>

@@ -483,22 +483,82 @@ export async function trainModel(config: {
   return result;
 }
 
-export function predictFraudML(features: ExtractedFeatures): MLPrediction {
-  let rawScore = 0;
-  for (const tree of ensembleTrees) {
-    const treeOut = evaluateTree(tree.root, features);
-    rawScore += tree.weight * treeOut;
+export async function predictFraudML(features: ExtractedFeatures): Promise<MLPrediction> {
+  // Map our extracted transaction features to the NeurIPS BAF dataset columns expected by LightGBM
+  const bafFeatures = {
+    income: 0.6,
+    name_email_similarity: 0.85,
+    prev_address_months_count: 12,
+    current_address_months_count: 24,
+    customer_age: 35,
+    days_since_request: 0.01,
+    intended_balcon_amount: features.amount,
+    payment_type: features.is_high_risk_category ? 'AB' : 'AA',
+    zip_count_4w: 1200,
+    velocity_6h: features.transaction_velocity_1h * 1000.0,
+    velocity_24h: features.transaction_velocity_24h * 1200.0,
+    velocity_4w: 5000,
+    bank_branch_count_8w: 10,
+    date_of_birth_distinct_emails_4w: 5,
+    employment_status: 'CA',
+    credit_risk_score: 150,
+    email_is_free: 1,
+    housing_status: 'BC',
+    phone_home_valid: 1,
+    phone_mobile_valid: 1,
+    bank_months_count: 12,
+    has_other_cards: 0,
+    proposed_credit_limit: 10000,
+    foreign_request: 0,
+    source: 'INTERNET',
+    session_length_in_minutes: 15,
+    device_os: features.new_device ? 'linux' : 'windows',
+    keep_alive_session: 1,
+    device_distinct_emails_8w: 1,
+    device_fraud_count: features.device_risk > 70 ? 2 : 0,
+    month: 6
+  };
+
+  let rawProbability = 0.05;
+  let calibratedProbability = 0.05;
+  let modelNameUsed = activeDeployedModel.name;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+    const response = await fetch('http://localhost:8000/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ features: bafFeatures }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const data = await response.json();
+      rawProbability = data.fraud_probability;
+      calibratedProbability = data.calibrated_probability || rawProbability;
+      modelNameUsed = data.model_version || "LightGBM / BAF Ensemble";
+    } else {
+      throw new Error(`Model server returned status ${response.status}`);
+    }
+  } catch (err) {
+    console.warn('ML Model Server unavailable, falling back to simulated ensemble trees:', err);
+    // Fallback: evaluate simulated ensemble trees in-memory
+    let rawScore = 0;
+    for (const tree of ensembleTrees) {
+      const treeOut = evaluateTree(tree.root, features);
+      rawScore += tree.weight * treeOut;
+    }
+    const mult = activeDeployedModel.tree_multiplier || 1.0;
+    const bias = activeDeployedModel.anomaly_bias || 0.0;
+    rawProbability = Math.min(0.99, Math.max(0.01, rawScore * mult + bias));
+    
+    // Fallback Platt scaling calculation
+    calibratedProbability = 1.0 / (1.0 + Math.exp(-(7.6371 * rawProbability - 5.6923)));
   }
 
-  // Factor in active deployed model calibration
-  const mult = activeDeployedModel.tree_multiplier || 1.0;
-  const bias = activeDeployedModel.anomaly_bias || 0.0;
-  const adjustedScore = rawScore * mult + bias;
-
-  // Sigmoid calibration
-  const calibratedProbability = Math.min(0.99, Math.max(0.01, adjustedScore));
-
-  // Feature Importance extraction
+  // Feature Importance extraction (for explanation)
   const importanceRank = [
     { feature: 'Amount Z-Score / Baseline Deviation', importance: 0.28, value: `${features.amount_z_score}σ (₹${features.amount.toLocaleString('en-IN')})` },
     { feature: 'New Unrecognized Device', importance: 0.22, value: features.new_device ? 'Yes (Risk: ' + features.device_risk + ')' : 'No (Trusted)' },
@@ -509,9 +569,10 @@ export function predictFraudML(features: ExtractedFeatures): MLPrediction {
   ];
 
   return {
-    fraud_probability: Number(calibratedProbability.toFixed(3)),
+    fraud_probability: Number(rawProbability.toFixed(3)),
+    calibrated_probability: Number(calibratedProbability.toFixed(3)),
     confidence: Number((0.85 + Math.abs(calibratedProbability - 0.5) * 0.28).toFixed(2)),
-    model_name: activeDeployedModel.name,
+    model_name: modelNameUsed,
     feature_importances: importanceRank,
     model_metrics: {
       accuracy: activeDeployedModel.accuracy,

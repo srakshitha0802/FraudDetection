@@ -1,0 +1,6 @@
+incident_type,precision,recall,f1_score,false_alarms,detection_time_sec
+NORMAL,0.00%,0.00%,0.00%,2,0.00s
+FRAUD_SPIKE,100.00%,95.00%,97.44%,0,30.98s
+ACCOUNT_TAKEOVER,100.00%,97.00%,98.48%,0,32.47s
+MULE_CLUSTER,100.00%,93.00%,96.37%,0,30.93s
+VELOCITY_ATTACK,100.00%,96.00%,97.96%,0,30.84s

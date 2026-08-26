@@ -12,269 +12,355 @@ import {
   WebhookSubscription,
   CaseNote
 } from './types.ts';
+import { dbQuery, initDatabase } from './db_sqlite.ts';
 
-// In-Memory Database Collections
+// Auto-syncing Map that pushes mutations to SQLite
+class SqliteMap<K, V> extends Map<K, V> {
+  constructor(
+    private tableName: string,
+    private keyField: string,
+    private syncFn: (key: K, val: V) => Promise<void>,
+    private deleteFn?: (key: K) => Promise<void>
+  ) {
+    super();
+  }
+
+  set(key: K, value: V): this {
+    super.set(key, value);
+    this.syncFn(key, value).catch(err => {
+      console.error(`SqliteMap Error: failed to sync set for ${this.tableName}`, err);
+    });
+    return this;
+  }
+
+  delete(key: K): boolean {
+    const deleted = super.delete(key);
+    if (deleted && this.deleteFn) {
+      this.deleteFn(key).catch(err => {
+        console.error(`SqliteMap Error: failed to sync delete for ${this.tableName}`, err);
+      });
+    }
+    return deleted;
+  }
+
+  // Load from database directly without triggers
+  loadRaw(key: K, value: V) {
+    super.set(key, value);
+  }
+}
+
+// Instantiate database collections
 export const db = {
-  users: new Map<string, UserProfile>(),
-  transactions: new Map<string, Transaction>(),
-  devices: new Map<string, DeviceInfo>(),
-  beneficiaries: new Map<string, BeneficiaryInfo>(),
-  fraud_alerts: new Map<string, FraudAlert>(),
+  users: new SqliteMap<string, UserProfile>(
+    'users',
+    'user_id',
+    async (key, val) => {
+      await dbQuery.run(`
+        INSERT OR REPLACE INTO users (user_id, name, email, phone, account_created_at, kyc_status, average_transaction_amount, median_transaction_amount, std_dev_amount, maximum_normal_amount, account_status, failed_login_count_24h, recent_password_reset, recent_phone_change)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        val.user_id, val.name, val.email, val.phone, val.account_created_at, val.kyc_status,
+        val.average_transaction_amount, val.median_transaction_amount, val.std_dev_amount,
+        val.maximum_normal_amount, val.account_status, val.failed_login_count_24h,
+        val.recent_password_reset ? 1 : 0, val.recent_phone_change ? 1 : 0
+      ]);
+    },
+    async (key) => {
+      await dbQuery.run('DELETE FROM users WHERE user_id = ?', [key]);
+    }
+  ),
+  transactions: new SqliteMap<string, Transaction>(
+    'transactions',
+    'transaction_id',
+    async (key, val) => {
+      await dbQuery.run(`
+        INSERT OR REPLACE INTO transactions (transaction_id, user_id, device_id, ip_address, location, amount, currency, payment_type, employment_status, housing_status, merchant_id, merchant_category, timestamp, request_hash, is_fraud_label)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        val.transaction_id, val.user_id, val.device_id, val.ip_address, val.location, val.amount, val.currency || 'INR',
+        val.transaction_type, val.employment_status || 'Unknown', val.housing_status || 'Unknown',
+        val.merchant_id || 'M_UNKNOWN', val.merchant_category || 'SHOPPING', val.timestamp,
+        val.request_hash || '',
+        val.is_fraud_label !== undefined ? val.is_fraud_label : -1
+      ]);
+      // Also sync risk scores if present
+      if (val.risk_score !== undefined) {
+        await dbQuery.run(`
+          INSERT OR REPLACE INTO risk_scores (transaction_id, final_risk_score, risk_level, decision, ml_probability, rule_score, anomaly_score, device_score, velocity_score)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          val.transaction_id,
+          val.risk_score,
+          val.risk_level || 'LOW',
+          val.policy_decision || 'APPROVE',
+          val.calibrated_probability !== undefined ? val.calibrated_probability : (val.risk_score / 100.0),
+          val.risk_score * 0.35,
+          0.0, 0.0, 0.0
+        ]);
+      }
+    },
+    async (key) => {
+      await dbQuery.run('DELETE FROM transactions WHERE transaction_id = ?', [key]);
+      await dbQuery.run('DELETE FROM risk_scores WHERE transaction_id = ?', [key]);
+    }
+  ),
+  devices: new SqliteMap<string, DeviceInfo>(
+    'devices',
+    'device_id',
+    async (key, val) => {
+      await dbQuery.run(`
+        INSERT OR REPLACE INTO devices (device_id, device_model, os, browser, ip_address, is_vpn, is_rooted_or_jailbroken, is_emulator, reputation_score, first_seen, last_seen, associated_users_count)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        val.device_id, val.device_model, val.os, val.browser, val.ip_address,
+        val.is_vpn ? 1 : 0, val.is_rooted_or_jailbroken ? 1 : 0, val.is_emulator ? 1 : 0,
+        val.reputation_score, val.first_seen, val.last_seen, val.associated_users_count
+      ]);
+    },
+    async (key) => {
+      await dbQuery.run('DELETE FROM devices WHERE device_id = ?', [key]);
+    }
+  ),
+  beneficiaries: new SqliteMap<string, BeneficiaryInfo>(
+    'beneficiaries',
+    'beneficiary_id',
+    async (key, val) => {
+      await dbQuery.run(`
+        INSERT OR REPLACE INTO beneficiaries (beneficiary_id, name, account_or_vpa, bank_name, created_at, is_verified, risk_score, associated_accounts_count, is_flagged_mule)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        val.beneficiary_id, val.name, val.account_or_vpa, val.bank_name, val.created_at,
+        val.is_verified ? 1 : 0, val.risk_score, val.associated_accounts_count, val.is_flagged_mule ? 1 : 0
+      ]);
+    },
+    async (key) => {
+      await dbQuery.run('DELETE FROM beneficiaries WHERE beneficiary_id = ?', [key]);
+    }
+  ),
+  fraud_alerts: new Map<string, FraudAlert>(), // kept simple, populated via server.ts
   investigations: new Map<string, AgentInvestigationRecord>(),
   audit_logs: [] as AuditLog[],
-  custom_rules: new Map<string, CustomRule>(),
-  watchlists: new Map<string, WatchlistItem>(),
-  api_keys: new Map<string, ApiKey>(),
-  webhooks: new Map<string, WebhookSubscription>(),
+  custom_rules: new SqliteMap<string, CustomRule>(
+    'custom_rules',
+    'rule_id',
+    async (key, val) => {
+      await dbQuery.run(`
+        INSERT OR REPLACE INTO custom_rules (id, name, description, rule_condition, risk_contribution, severity, is_active, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        val.rule_id, val.name, val.description, JSON.stringify(val.conditions),
+        val.risk_contribution, val.severity, val.enabled ? 1 : 0, val.created_at
+      ]);
+    },
+    async (key) => {
+      await dbQuery.run('DELETE FROM custom_rules WHERE id = ?', [key]);
+    }
+  ),
+  watchlists: new SqliteMap<string, WatchlistItem>(
+    'watchlists',
+    'id',
+    async (key, val) => {
+      await dbQuery.run(`
+        INSERT OR REPLACE INTO watchlists (id, type, value, reason, risk_weight, added_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [
+        val.id, val.type, val.value, val.reason, val.risk_weight || 50, val.created_at
+      ]);
+    },
+    async (key) => {
+      await dbQuery.run('DELETE FROM watchlists WHERE id = ?', [key]);
+    }
+  ),
+  api_keys: new SqliteMap<string, ApiKey>(
+    'api_keys',
+    'key_id',
+    async (key, val) => {
+      await dbQuery.run(`
+        INSERT OR REPLACE INTO api_keys (id, name, prefix, secret_hash, created_at, status)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [
+        val.key_id, val.name, val.prefix, val.key_secret, val.created_at, val.is_active ? 'ACTIVE' : 'INACTIVE'
+      ]);
+    },
+    async (key) => {
+      await dbQuery.run('DELETE FROM api_keys WHERE id = ?', [key]);
+    }
+  ),
+  webhooks: new SqliteMap<string, WebhookSubscription>(
+    'webhooks',
+    'webhook_id',
+    async (key, val) => {
+      await dbQuery.run(`
+        INSERT OR REPLACE INTO webhooks (id, url, secret, events, created_at, status)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [
+        val.webhook_id, val.target_url, val.secret_token, JSON.stringify(val.events), val.created_at, val.status
+      ]);
+    },
+    async (key) => {
+      await dbQuery.run('DELETE FROM webhooks WHERE id = ?', [key]);
+    }
+  ),
   case_notes: new Map<string, CaseNote[]>(),
 };
 
-// Seed dataset archive items into memory DB
-export function seedDatabase() {
-  db.users.clear();
-  db.transactions.clear();
-  db.devices.clear();
-  db.beneficiaries.clear();
-  db.fraud_alerts.clear();
-  db.investigations.clear();
-  db.audit_logs = [];
-  db.custom_rules.clear();
-  db.watchlists.clear();
-  db.api_keys.clear();
-  db.webhooks.clear();
-  db.case_notes.clear();
+// Seed database wrapper
+export async function seedDatabase() {
+  await initDatabase();
+  
+  // Load tables from SQLite into our memory Map collections
+  const usersList = await dbQuery.all('SELECT * FROM users');
+  for (const u of usersList) {
+    db.users.loadRaw(u.user_id, {
+      user_id: u.user_id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      account_created_at: u.account_created_at,
+      kyc_status: u.kyc_status as any,
+      average_transaction_amount: u.average_transaction_amount,
+      median_transaction_amount: u.median_transaction_amount,
+      std_dev_amount: u.std_dev_amount,
+      maximum_normal_amount: u.maximum_normal_amount,
+      usual_transaction_times: ['08:00-22:00'],
+      usual_locations: ['Bengaluru'],
+      usual_devices: [],
+      usual_merchants: [],
+      usual_beneficiaries: [],
+      average_daily_transaction_count: 2,
+      average_daily_transaction_volume: 4000,
+      recent_password_reset: u.recent_password_reset === 1,
+      recent_phone_change: u.recent_phone_change === 1,
+      failed_login_count_24h: u.failed_login_count_24h,
+      account_status: u.account_status as any
+    });
+  }
 
-  // Users Dataset Archive
-  db.users.set('U102', {
-    user_id: 'U102',
-    name: 'Aarav Sharma',
-    email: 'aarav.sharma@example.com',
-    phone: '+918639975744',
-    account_created_at: '2025-01-01',
-    kyc_status: 'VERIFIED',
-    average_transaction_amount: 1850,
-    median_transaction_amount: 1500,
-    std_dev_amount: 420,
-    maximum_normal_amount: 5000,
-    usual_transaction_times: ['08:00-22:00'],
-    usual_locations: ['Bengaluru'],
-    usual_devices: ['DEV102_IPHONE14'],
-    usual_merchants: ['Swiggy', 'Zomato'],
-    usual_beneficiaries: ['B102_MOM'],
-    average_daily_transaction_count: 2,
-    average_daily_transaction_volume: 3700,
-    recent_password_reset: false,
-    recent_phone_change: false,
-    failed_login_count_24h: 0,
-    account_status: 'ACTIVE'
-  });
+  const devicesList = await dbQuery.all('SELECT * FROM devices');
+  for (const d of devicesList) {
+    db.devices.loadRaw(d.device_id, {
+      device_id: d.device_id,
+      device_model: d.device_model,
+      os: d.os,
+      browser: d.browser,
+      ip_address: d.ip_address,
+      is_vpn: d.is_vpn === 1,
+      is_rooted_or_jailbroken: d.is_rooted_or_jailbroken === 1,
+      is_emulator: d.is_emulator === 1,
+      reputation_score: d.reputation_score,
+      first_seen: d.first_seen,
+      last_seen: d.last_seen,
+      associated_users_count: d.associated_users_count,
+      associated_users: []
+    });
+  }
 
-  db.users.set('U205', {
-    user_id: 'U205',
-    name: 'Priya Patel',
-    email: 'priya.patel@example.com',
-    phone: '+919845012345',
-    account_created_at: '2024-06-15',
-    kyc_status: 'VERIFIED',
-    average_transaction_amount: 2500,
-    median_transaction_amount: 2000,
-    std_dev_amount: 800,
-    maximum_normal_amount: 8000,
-    usual_transaction_times: ['09:00-21:00'],
-    usual_locations: ['Mumbai'],
-    usual_devices: ['DEV205_PIXEL8'],
-    usual_merchants: ['Amazon', 'Flipkart'],
-    usual_beneficiaries: ['B201_LANDLORD'],
-    average_daily_transaction_count: 3,
-    average_daily_transaction_volume: 7500,
-    recent_password_reset: false,
-    recent_phone_change: false,
-    failed_login_count_24h: 0,
-    account_status: 'ACTIVE'
-  });
+  const beneficiariesList = await dbQuery.all('SELECT * FROM beneficiaries');
+  for (const b of beneficiariesList) {
+    db.beneficiaries.loadRaw(b.beneficiary_id, {
+      beneficiary_id: b.beneficiary_id,
+      name: b.name,
+      account_or_vpa: b.account_or_vpa,
+      bank_name: b.bank_name,
+      created_at: b.created_at,
+      is_verified: b.is_verified === 1,
+      risk_score: b.risk_score,
+      associated_accounts_count: b.associated_accounts_count,
+      associated_users: [],
+      is_flagged_mule: b.is_flagged_mule === 1
+    });
+  }
 
-  db.users.set('U309', {
-    user_id: 'U309',
-    name: 'Vikram Malhotra',
-    email: 'vikram.m@example.com',
-    phone: '+919811223344',
-    account_created_at: '2023-11-20',
-    kyc_status: 'VERIFIED',
-    average_transaction_amount: 12000,
-    median_transaction_amount: 10000,
-    std_dev_amount: 3500,
-    maximum_normal_amount: 35000,
-    usual_transaction_times: ['08:00-23:00'],
-    usual_locations: ['Delhi'],
-    usual_devices: ['DEV309_MACBOOK'],
-    usual_merchants: ['MakeMyTrip', 'Apple Store'],
-    usual_beneficiaries: [],
-    average_daily_transaction_count: 1,
-    average_daily_transaction_volume: 12000,
-    recent_password_reset: false,
-    recent_phone_change: false,
-    failed_login_count_24h: 0,
-    account_status: 'ACTIVE'
-  });
+  const rulesList = await dbQuery.all('SELECT * FROM custom_rules');
+  for (const r of rulesList) {
+    let conditions = [];
+    try { conditions = JSON.parse(r.rule_condition); } catch {}
+    db.custom_rules.loadRaw(r.id, {
+      rule_id: r.id,
+      name: r.name,
+      description: r.description,
+      enabled: r.is_active === 1,
+      severity: r.severity as any,
+      action: 'BLOCK',
+      conditions: conditions,
+      logic: 'AND',
+      risk_contribution: r.risk_contribution,
+      created_at: r.created_at,
+      last_triggered_count: 0
+    });
+  }
 
-  db.users.set('U412', {
-    user_id: 'U412',
-    name: 'Ananya Rao',
-    email: 'ananya.rao@example.com',
-    phone: '+919988776655',
-    account_created_at: '2026-08-15',
-    kyc_status: 'VERIFIED',
-    average_transaction_amount: 3400,
-    median_transaction_amount: 2500,
-    std_dev_amount: 1200,
-    maximum_normal_amount: 10000,
-    usual_transaction_times: ['10:00-20:00'],
-    usual_locations: ['Hyderabad'],
-    usual_devices: ['DEV778'],
-    usual_merchants: ['Myntra'],
-    usual_beneficiaries: ['B992'],
-    average_daily_transaction_count: 5,
-    average_daily_transaction_volume: 17000,
-    recent_password_reset: true,
-    recent_phone_change: false,
-    failed_login_count_24h: 6,
-    account_status: 'FLAGGED'
-  });
+  const watchlistsList = await dbQuery.all('SELECT * FROM watchlists');
+  for (const w of watchlistsList) {
+    db.watchlists.loadRaw(w.id, {
+      id: w.id,
+      type: w.type as any,
+      value: w.value,
+      list_type: 'BLACKLIST',
+      category: 'MULE',
+      reason: w.reason,
+      created_at: w.added_at,
+      created_by: 'SYSTEM',
+      hits_count: 0
+    });
+  }
 
-  // Devices Dataset Archive
-  db.devices.set('DEV102_IPHONE14', {
-    device_id: 'DEV102_IPHONE14',
-    device_model: 'Apple iPhone 14 Pro',
-    os: 'iOS 17.4',
-    browser: 'Mobile Safari',
-    ip_address: '49.207.210.45',
-    is_vpn: false,
-    is_rooted_or_jailbroken: false,
-    is_emulator: false,
-    reputation_score: 98,
-    first_seen: '2025-01-01',
-    last_seen: '2026-08-22',
-    associated_users_count: 1,
-    associated_users: ['U102']
-  });
+  const keysList = await dbQuery.all('SELECT * FROM api_keys');
+  for (const k of keysList) {
+    db.api_keys.loadRaw(k.id, {
+      key_id: k.id,
+      name: k.name,
+      prefix: k.prefix,
+      key_secret: k.secret_hash,
+      environment: 'live',
+      permissions: ['read', 'write'],
+      created_at: k.created_at,
+      last_used_at: null,
+      is_active: k.status === 'ACTIVE'
+    });
+  }
 
-  db.devices.set('DEV205_PIXEL8', {
-    device_id: 'DEV205_PIXEL8',
-    device_model: 'Google Pixel 8 Pro',
-    os: 'Android 14',
-    browser: 'Chrome 122',
-    ip_address: '103.22.14.88',
-    is_vpn: false,
-    is_rooted_or_jailbroken: false,
-    is_emulator: false,
-    reputation_score: 95,
-    first_seen: '2024-06-15',
-    last_seen: '2026-08-22',
-    associated_users_count: 1,
-    associated_users: ['U205']
-  });
+  const webhooksList = await dbQuery.all('SELECT * FROM webhooks');
+  for (const wh of webhooksList) {
+    let events = [];
+    try { events = JSON.parse(wh.events); } catch {}
+    db.webhooks.loadRaw(wh.id, {
+      webhook_id: wh.id,
+      target_url: wh.url,
+      secret_token: wh.secret,
+      events: events,
+      status: wh.status as any,
+      last_delivery_at: null,
+      last_status_code: null,
+      created_at: wh.created_at
+    });
+  }
 
-  db.devices.set('DEV309_MACBOOK', {
-    device_id: 'DEV309_MACBOOK',
-    device_model: 'Apple MacBook Pro M3',
-    os: 'macOS Sonoma',
-    browser: 'Chrome 122',
-    ip_address: '122.171.18.99',
-    is_vpn: false,
-    is_rooted_or_jailbroken: false,
-    is_emulator: false,
-    reputation_score: 99,
-    first_seen: '2023-11-20',
-    last_seen: '2026-08-22',
-    associated_users_count: 1,
-    associated_users: ['U309']
-  });
+  // Load Transactions
+  const txsList = await dbQuery.all('SELECT * FROM transactions');
+  for (const tx of txsList) {
+    const risk = await dbQuery.get('SELECT * FROM risk_scores WHERE transaction_id = ?', [tx.transaction_id]);
+    db.transactions.loadRaw(tx.transaction_id, {
+      transaction_id: tx.transaction_id,
+      user_id: tx.user_id,
+      amount: tx.amount,
+      currency: tx.currency,
+      merchant_id: tx.merchant_id,
+      merchant_category: tx.merchant_category as any,
+      timestamp: tx.timestamp,
+      transaction_type: tx.payment_type as any,
+      device_id: tx.device_id,
+      ip_address: tx.ip_address,
+      location: tx.location,
+      is_fraud_label: tx.is_fraud_label,
+      request_hash: tx.request_hash,
+      status: risk ? (risk.decision === 'BLOCK' ? 'BLOCKED' : 'APPROVED') : 'APPROVED',
+      risk_score: risk ? risk.final_risk_score : undefined,
+      risk_level: risk ? risk.risk_level : undefined
+    });
+  }
 
-  db.devices.set('DEV778', {
-    device_id: 'DEV778',
-    device_model: 'Generic Android Emulator',
-    os: 'Android 12 (Rooted)',
-    browser: 'Chrome 110',
-    ip_address: '103.145.74.19',
-    is_vpn: true,
-    is_rooted_or_jailbroken: true,
-    is_emulator: true,
-    reputation_score: 15,
-    first_seen: '2026-08-01',
-    last_seen: '2026-08-22',
-    associated_users_count: 2,
-    associated_users: ['U102', 'U412']
-  });
-
-  db.devices.set('DEV_UNREGISTERED_NEW', {
-    device_id: 'DEV_UNREGISTERED_NEW',
-    device_model: 'Unrecognized Client Device',
-    os: 'Unknown OS',
-    browser: 'Unknown Browser',
-    ip_address: '185.220.101.5',
-    is_vpn: true,
-    is_rooted_or_jailbroken: false,
-    is_emulator: true,
-    reputation_score: 25,
-    first_seen: '2026-08-22',
-    last_seen: '2026-08-22',
-    associated_users_count: 1,
-    associated_users: ['U102']
-  });
-
-  // Beneficiaries Dataset Archive
-  db.beneficiaries.set('B102_MOM', {
-    beneficiary_id: 'B102_MOM',
-    name: 'Kavita Sharma (Mom)',
-    account_or_vpa: 'kavita.sharma@okhdfcbank',
-    bank_name: 'HDFC Bank',
-    created_at: '2025-01-10',
-    is_verified: true,
-    risk_score: 5,
-    associated_accounts_count: 1,
-    associated_users: ['U102'],
-    is_flagged_mule: false
-  });
-
-  db.beneficiaries.set('B201_LANDLORD', {
-    beneficiary_id: 'B201_LANDLORD',
-    name: 'Suresh Trivedi Estates',
-    account_or_vpa: 'trivedi.estates@icici',
-    bank_name: 'ICICI Bank',
-    created_at: '2024-07-01',
-    is_verified: true,
-    risk_score: 8,
-    associated_accounts_count: 1,
-    associated_users: ['U205'],
-    is_flagged_mule: false
-  });
-
-  db.beneficiaries.set('B_NEW_981', {
-    beneficiary_id: 'B_NEW_981',
-    name: 'Rajesh Electronics Store',
-    account_or_vpa: 'rajesh.store@upi',
-    bank_name: 'State Bank of India',
-    created_at: '2026-08-20',
-    is_verified: false,
-    risk_score: 45,
-    associated_accounts_count: 1,
-    associated_users: ['U205'],
-    is_flagged_mule: false
-  });
-
-  db.beneficiaries.set('B992', {
-    beneficiary_id: 'B992',
-    name: 'FastCash Mule Crypto Payee',
-    account_or_vpa: 'fastcash.mule@upi',
-    bank_name: 'Axis Bank',
-    created_at: '2026-08-18',
-    is_verified: false,
-    risk_score: 95,
-    associated_accounts_count: 2,
-    associated_users: ['U102', 'U412'],
-    is_flagged_mule: true
-  });
+  console.log(`Successfully synced SQLite data to memory cache maps. Loaded ${db.transactions.size} transactions.`);
 }
 
-// Initialize on startup
-seedDatabase();
+

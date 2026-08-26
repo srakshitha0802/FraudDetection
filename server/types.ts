@@ -19,6 +19,7 @@ export interface Transaction {
   status: 'PENDING' | 'APPROVED' | 'VERIFICATION_REQUIRED' | 'HELD' | 'BLOCKED' | 'RESOLVED';
   risk_score?: number;
   risk_level?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  calibrated_probability?: number;
   recommended_action?: string;
   policy_decision?: string;
   investigation_id?: string;
@@ -33,6 +34,10 @@ export interface Transaction {
     timestamp: string;
     notes: string;
   };
+  employment_status?: string;
+  housing_status?: string;
+  is_fraud_label?: number;
+  request_hash?: string;
 }
 
 export interface ForensicChatMessage {
@@ -135,6 +140,7 @@ export interface ExtractedFeatures {
 
 export interface MLPrediction {
   fraud_probability: number; // 0.0 - 1.0
+  calibrated_probability?: number;
   confidence: number;
   model_name: string;
   feature_importances: { feature: string; importance: number; value: number | string | boolean }[];
@@ -281,6 +287,7 @@ export interface WatchlistItem {
   created_at: string;
   created_by: string;
   hits_count: number;
+  risk_weight?: number;
 }
 
 export interface ApiKey {
@@ -292,6 +299,7 @@ export interface ApiKey {
   created_at: string;
   last_used_at: string | null;
   is_active: boolean;
+  prefix?: string;
 }
 
 export interface WebhookSubscription {

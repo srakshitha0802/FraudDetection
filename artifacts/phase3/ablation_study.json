@@ -1,0 +1,30 @@
+[
+  {
+    "configuration": "Rules Only",
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1_score": 0.0,
+    "expected_loss": 129510000.0
+  },
+  {
+    "configuration": "ML Only",
+    "precision": 0.08300187178287319,
+    "recall": 0.4930507296733843,
+    "f1_score": 0.1420847101231601,
+    "expected_loss": 97718500.0
+  },
+  {
+    "configuration": "ML + Rules",
+    "precision": 0.08300187178287319,
+    "recall": 0.4930507296733843,
+    "f1_score": 0.1420847101231601,
+    "expected_loss": 97718500.0
+  },
+  {
+    "configuration": "Full Sentinel",
+    "precision": 0.08300187178287319,
+    "recall": 0.4930507296733843,
+    "f1_score": 0.1420847101231601,
+    "expected_loss": 97718500.0
+  }
+]

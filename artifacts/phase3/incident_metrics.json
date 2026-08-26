@@ -1,0 +1,52 @@
+{
+  "NORMAL": {
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1_score": 0.0,
+    "false_alarms": 2,
+    "missed_incidents": 0,
+    "mean_detection_time_sec": 0.0,
+    "median_detection_time_sec": 0.0,
+    "p95_detection_time_sec": 0.0
+  },
+  "FRAUD_SPIKE": {
+    "precision": 1.0,
+    "recall": 0.95,
+    "f1_score": 0.9743589743589743,
+    "false_alarms": 0,
+    "missed_incidents": 5,
+    "mean_detection_time_sec": 30.98051288229091,
+    "median_detection_time_sec": 31.10872167861796,
+    "p95_detection_time_sec": 37.38995441169888
+  },
+  "ACCOUNT_TAKEOVER": {
+    "precision": 1.0,
+    "recall": 0.97,
+    "f1_score": 0.9847715736040609,
+    "false_alarms": 0,
+    "missed_incidents": 3,
+    "mean_detection_time_sec": 32.47216728214394,
+    "median_detection_time_sec": 32.19430786171874,
+    "p95_detection_time_sec": 39.716057240377516
+  },
+  "MULE_CLUSTER": {
+    "precision": 1.0,
+    "recall": 0.93,
+    "f1_score": 0.9637305699481865,
+    "false_alarms": 0,
+    "missed_incidents": 7,
+    "mean_detection_time_sec": 30.927396211741627,
+    "median_detection_time_sec": 30.944367789591087,
+    "p95_detection_time_sec": 36.50072544105505
+  },
+  "VELOCITY_ATTACK": {
+    "precision": 1.0,
+    "recall": 0.96,
+    "f1_score": 0.9795918367346939,
+    "false_alarms": 0,
+    "missed_incidents": 4,
+    "mean_detection_time_sec": 30.839705130410128,
+    "median_detection_time_sec": 31.75753513079109,
+    "p95_detection_time_sec": 37.054425014894164
+  }
+}

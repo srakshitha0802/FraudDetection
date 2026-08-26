@@ -1,0 +1,9 @@
+{
+  "brier_score_raw": 0.026138369422014984,
+  "brier_score_calibrated": 0.011250019980160928,
+  "coefficients": {
+    "A": 7.637060795614555,
+    "B": -5.692317821288521
+  },
+  "description": "Platt Scaling Logistic regression fit on Month 5 validation predictions."
+}

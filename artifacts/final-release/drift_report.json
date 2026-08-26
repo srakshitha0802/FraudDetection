@@ -1,0 +1,23 @@
+{
+  "release_id": "sentinel-release-candidate-final",
+  "git_commit": "4b72698a4b22f8b79044a61fbb59a7bd3f418125",
+  "model_version": "v3.0-lightgbm",
+  "calibration_version": "platt-v1.0",
+  "threshold_version": "opt-v1.0",
+  "database_schema_version": "005_indexes",
+  "release_timestamp": "2026-08-26T03:43:44Z",
+  "data": {
+    "Month 6": {
+      "precision": 0.07692307692307693,
+      "recall": 0.49310344827586206,
+      "f1": 0.1330851558864588,
+      "roc_auc": 0.8309647533848472
+    },
+    "Month 7": {
+      "precision": 0.09024484040507627,
+      "recall": 0.49299719887955185,
+      "f1": 0.15256257449344457,
+      "roc_auc": 0.8348158259268701
+    }
+  }
+}

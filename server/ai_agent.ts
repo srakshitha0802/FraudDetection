@@ -176,7 +176,7 @@ export const agentFunctionDeclarations: FunctionDeclaration[] = [
 ];
 
 // Tool Execution Dispatcher
-export function executeToolCall(name: string, args: Record<string, any>): { result: any; summary: string } {
+export async function executeToolCall(name: string, args: Record<string, any>): Promise<{ result: any; summary: string }> {
   switch (name) {
     case 'get_transaction': {
       const tx = db.transactions.get(args.transaction_id);
@@ -280,7 +280,7 @@ export function executeToolCall(name: string, args: Record<string, any>): { resu
       const tx = db.transactions.get(args.transaction_id);
       if (!tx) return { result: { error: 'Transaction not found' }, summary: 'Transaction not found.' };
       const features = extractFeatures(tx);
-      const prediction = predictFraudML(features);
+      const prediction = await predictFraudML(features);
       return {
         result: prediction,
         summary: `ML Model (${prediction.model_name}): Fraud Probability = ${(prediction.fraud_probability * 100).toFixed(1)}%, Confidence = ${(prediction.confidence * 100).toFixed(0)}%. Top signal: ${prediction.feature_importances[0].feature}.`,
@@ -303,7 +303,7 @@ export function executeToolCall(name: string, args: Record<string, any>): { resu
       const tx = db.transactions.get(args.transaction_id);
       if (!tx) return { result: { error: 'Transaction not found' }, summary: 'Transaction not found.' };
       const features = extractFeatures(tx);
-      const ml = predictFraudML(features);
+      const ml = await predictFraudML(features);
       const rules = evaluateRules(features, tx);
       const risk = calculateRiskScore(features, ml, rules);
       return {
@@ -354,7 +354,7 @@ export async function investigateTransaction(txId: string): Promise<AgentInvesti
 
   const user = db.users.get(tx.user_id);
   const features = extractFeatures(tx, user);
-  const mlPrediction = predictFraudML(features);
+  const mlPrediction = await predictFraudML(features);
   const ruleResults = evaluateRules(features, tx);
   const riskBreakdown = calculateRiskScore(features, mlPrediction, ruleResults);
 
@@ -381,7 +381,7 @@ export async function investigateTransaction(txId: string): Promise<AgentInvesti
   ];
 
   for (const step of toolSequence) {
-    const execution = executeToolCall(step.name, step.args);
+    const execution = await executeToolCall(step.name, step.args);
     toolLogs.push({
       tool_name: step.name,
       timestamp: formatTime(step.offset),
@@ -496,22 +496,29 @@ export async function investigateTransaction(txId: string): Promise<AgentInvesti
   if (gemini && canCallGemini && !summaryCache.has(cacheKey)) {
     lastGeminiCallTime = currentTime;
     try {
-      const prompt = `You are Fraud Sentinel AI, an elite cybersecurity & digital payment fraud investigation agent.
-Analyze this payment transaction investigation:
+      const prompt = `You are the Sentinel AI Fraud Investigation Assistant.
+Analyze this payment transaction:
 - Transaction ID: ${tx.transaction_id}
 - User: ${user?.name || tx.user_id} (Baseline avg: ₹${user?.average_transaction_amount}, Max normal: ₹${user?.maximum_normal_amount})
 - Amount: ₹${tx.amount}
-- Device: ${tx.device_id} (New: ${features.new_device}, Risk: ${features.device_risk})
-- Beneficiary: ${tx.beneficiary_name || tx.beneficiary_id} (New: ${features.new_beneficiary}, Mule links: ${features.network_shared_beneficiary_count})
+- Device: ${tx.device_id} (New: ${features.new_device}, Risk: ${features.device_risk}/100)
+- Beneficiary: ${tx.beneficiary_name || tx.beneficiary_id} (New: ${features.new_beneficiary}, Mule linkages: ${features.network_shared_beneficiary_count})
 - Security Events: Password reset < 24h: ${features.recent_password_change}, Failed logins: ${features.failed_login_count}
 - ML Fraud Probability: ${(mlPrediction.fraud_probability * 100).toFixed(1)}%
 - Risk Score: ${riskBreakdown.final_risk_score}/100 (${riskBreakdown.risk_level})
 - Classification: ${classification}
+- Rule Signals: ${riskBreakdown.reasons.join(' | ')}
+- Recommended Action: ${recommendedAction}
 
-Provide a concise, highly professional 2-3 sentence executive investigation summary explaining WHY this was flagged and summarizing the primary risk. Do not output markdown code blocks.`;
+Provide a professional, concise 3-sentence investigation report explaining:
+1. Why this transaction was flagged and how it deviates from the user's historical baseline.
+2. What entity connections (device, IP, or beneficiary sharing) indicate coordinated abuse.
+3. What specific evidence the analyst must inspect next and the recommended action.
+
+CRITICAL: Never invent or assume any facts. If evidence for any signal is missing, state "Insufficient evidence." Reference only the actual calculated metrics above. Do not output markdown code blocks.`;
 
       const response = await gemini.models.generateContent({
-        model: 'gemini-3.7-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
       });
 

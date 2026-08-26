@@ -1,0 +1,6 @@
+{
+  "model_path": "models/sentinel_model.lgb",
+  "num_features": 31,
+  "scale_pos_weight": 99.24718100890207,
+  "trained_epochs": 1
+}
